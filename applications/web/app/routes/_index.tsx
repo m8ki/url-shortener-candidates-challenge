@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { useUrlValidation } from "~/hooks/useUrlValidation";
 
 export async function loader({ request }: Route.LoaderArgs) {
   try {
@@ -163,6 +164,26 @@ export default function Index({ loaderData }: Route.ComponentProps) {
   const revalidator = useRevalidator();
   const isSubmitting = navigation.state === "submitting";
   const isLoading = navigation.state === "loading" || revalidator.state === "loading";
+  const { 
+    validationError, 
+    touched, 
+    validate, 
+    markAsTouched, 
+    reset: resetValidation,
+    shouldShowError 
+  } = useUrlValidation();
+
+  // Handle local form submission to prevent unnecessary server calls
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const formData = new FormData(event.currentTarget);
+    const url = formData.get("url") as string;
+    
+    markAsTouched();
+    if (!validate(url)) {
+      event.preventDefault();
+      return;
+    }
+  };
 
   // On mount and when actionData changes, ensure we load the user's links
   useEffect(() => {
@@ -183,8 +204,15 @@ export default function Index({ loaderData }: Route.ComponentProps) {
       const params = new URLSearchParams({ shortCodes: codes.join(',') });
       navigate(`/?${params.toString()}`, { replace: true });
       revalidator.revalidate();
+      
+      // Reset validation state on success
+      resetValidation();
+      
+      // Clear input manually if needed (Form usually does this on successful non-JS navigation but we're in SPA mode)
+      const input = document.getElementById('url') as HTMLInputElement;
+      if (input) input.value = '';
     }
-  }, [actionData, revalidator, navigate]);
+  }, [actionData, revalidator, navigate, resetValidation]);
 
   return (
     <main className="min-h-screen bg-gray-50/50 p-4 dark:bg-gray-900 font-sans">
@@ -236,7 +264,7 @@ export default function Index({ loaderData }: Route.ComponentProps) {
              <CardTitle>Shorten a new URL</CardTitle>
           </CardHeader>
           <CardContent>
-            <Form method="post" className="space-y-4">
+            <Form method="post" className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="url">Long URL</Label>
                 <div className="flex gap-2">
@@ -246,8 +274,11 @@ export default function Index({ loaderData }: Route.ComponentProps) {
                     name="url"
                     placeholder="https://example.com/very-long-url..."
                     required
-                    className="flex-1"
-                    aria-invalid={actionData?.error ? true : undefined}
+                    className={`flex-1 ${shouldShowError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    aria-invalid={shouldShowError || actionData?.error ? true : undefined}
+                    aria-describedby={shouldShowError ? "url-error" : undefined}
+                    onChange={(e) => touched && validate(e.target.value)}
+                    onBlur={() => markAsTouched()}
                   />
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? (
@@ -260,8 +291,13 @@ export default function Index({ loaderData }: Route.ComponentProps) {
                     )}
                   </Button>
                 </div>
-                {actionData?.error && (
-                  <p className="text-sm text-destructive">{actionData.error}</p>
+                {shouldShowError && (
+                  <p id="url-error" className="text-sm text-destructive font-medium animate-in fade-in slide-in-from-top-1">
+                    {validationError?.message}
+                  </p>
+                )}
+                {!shouldShowError && actionData?.error && (
+                  <p className="text-sm text-destructive font-medium">{actionData.error}</p>
                 )}
               </div>
             </Form>

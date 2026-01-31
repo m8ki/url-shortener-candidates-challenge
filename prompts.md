@@ -6,6 +6,14 @@
    - Updated imports from custom path to standard `@prisma/client`
    - Configured Vite to externalize `@prisma/client` in SSR mode to prevent bundling CommonJS code as ESM
    - Regenerated Prisma Client with correct configuration
+### Step 7: Frontend URL Validation & Testing
+- **Task**: Implement robust URL input validation with proper error feedback and tests.
+- **Actions**:
+    - Created `useUrlValidation` hook.
+    - Implemented 37 Vitest tests for edge cases.
+    - Integrated real-time feedback into `_index.tsx`.
+    - Verified all tests pass.
+- **Tools**: Vitest, React Router v7, custom validation hook.
 5. **Implemented privacy-focused "Your Recent Links"** using browser localStorage:
    - Changed from showing ALL database URLs to only user's own links
    - Client-side: Store shortCodes in localStorage when user creates a URL
