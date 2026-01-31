@@ -1,1 +1,2 @@
 1. Looking at your GEMINI.md file which will be your context, what do you think it can be improved, take into acount this will be a coding challenge
+2. Start by implementing a clean, modern UI with consistent styling using Reusable components (consider Radix or shadcn)

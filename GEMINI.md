@@ -18,3 +18,4 @@ I want you to document your decisions and reasoning in the `CHALLENGE_SUBMISSION
 
 Application should be dockerized and instructions should be in the `README.md` file. Also verify that it works correctly.
 
+Please do not recommend further features. Just implement what is required. I will ask for more features if needed.
