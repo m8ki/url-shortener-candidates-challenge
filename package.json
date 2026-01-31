@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "test:e2e": "pnpm -F web test:e2e"
   },
   "packageManager": "pnpm@10.20.0",
   "devDependencies": {

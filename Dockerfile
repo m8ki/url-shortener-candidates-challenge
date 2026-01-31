@@ -1,5 +1,6 @@
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
 RUN corepack enable && corepack prepare pnpm@10.20.0 --activate
+RUN apt-get update && apt-get install -y openssl libsqlite3-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 FROM base AS dependencies

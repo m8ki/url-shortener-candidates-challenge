@@ -1,6 +1,6 @@
 
 import { Form, useActionData, useNavigation, useLoaderData, useRevalidator, useNavigate } from "react-router";
-import { Link, Loader2, Copy, ExternalLink, BarChart } from "lucide-react";
+import { Link, Loader2, Copy, ExternalLink, BarChart, Check } from "lucide-react";
 import type { Route } from "./+types/_index";
 import { 
   shortenUrlUseCase, 
@@ -10,7 +10,7 @@ import {
   getErrorMessage,
   getErrorCode,
 } from "@url-shortener/engine";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -23,6 +23,13 @@ import {
 } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "~/components/ui/dialog";
 import { useUrlValidation } from "~/hooks/useUrlValidation";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -173,9 +180,21 @@ export default function Index({ loaderData }: Route.ComponentProps) {
     shouldShowError 
   } = useUrlValidation();
 
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [lastShortenedUrl, setLastShortenedUrl] = useState<string | null>(null);
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedCode(id);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
   // Handle local form submission to prevent unnecessary server calls
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    const formData = new FormData(event.currentTarget);
+    // const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     const url = formData.get("url") as string;
     
     markAsTouched();
@@ -188,16 +207,25 @@ export default function Index({ loaderData }: Route.ComponentProps) {
   // On mount and when actionData changes, ensure we load the user's links
   useEffect(() => {
     const codes = getStoredShortCodes();
+    const searchParams = new URLSearchParams(window.location.search);
+    const hasShortCodesParam = searchParams.has('shortCodes');
+
     if (codes.length > 0) {
       // Navigate with shortCodes query param to load user's links
       const params = new URLSearchParams({ shortCodes: codes.join(',') });
-      navigate(`/?${params.toString()}`, { replace: true });
+      // Only navigate if params are different to avoid unnecessary history entries
+      if (searchParams.get('shortCodes') !== codes.join(',')) {
+        navigate(`/?${params.toString()}`, { replace: true });
+      }
+    } else if (hasShortCodesParam) {
+      // If localStorage is empty but we have params, clear them
+      navigate('/', { replace: true });
     }
   }, []);
 
   // When a new URL is shortened, save it to localStorage and revalidate
   useEffect(() => {
-    if (actionData?.success && actionData?.shortCode) {
+    if (actionData?.success && actionData?.shortCode && actionData?.shortenedUrl) {
       addShortCode(actionData.shortCode);
       // Revalidate to fetch the updated list with the new shortCode
       const codes = getStoredShortCodes();
@@ -211,6 +239,13 @@ export default function Index({ loaderData }: Route.ComponentProps) {
       // Clear input manually if needed (Form usually does this on successful non-JS navigation but we're in SPA mode)
       const input = document.getElementById('url') as HTMLInputElement;
       if (input) input.value = '';
+
+      // Set state and auto copy
+      setLastShortenedUrl(actionData.shortenedUrl);
+      navigator.clipboard.writeText(actionData.shortenedUrl);
+      setIsDialogOpen(true);
+      setCopiedCode('new-url');
+      setTimeout(() => setCopiedCode(null), 2000);
     }
   }, [actionData, revalidator, navigate, resetValidation]);
 
@@ -233,7 +268,7 @@ export default function Index({ loaderData }: Route.ComponentProps) {
 
         {/* Database Error Alert */}
         {loaderError && (
-          <Card className="border-destructive/50 bg-destructive/5">
+          <Card className="border-destructive/50 bg-destructive/5" data-testid="error-alert">
             <CardHeader>
               <CardTitle className="text-destructive flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -243,9 +278,9 @@ export default function Index({ loaderData }: Route.ComponentProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">{loaderError}</p>
+              <p className="text-sm text-muted-foreground" data-testid="error-message">{loaderError}</p>
               {loaderErrorCode === 'DATABASE_CONNECTION_ERROR' && (
-                <div className="mt-4 p-3 bg-muted rounded-md">
+                <div className="mt-4 p-3 bg-muted rounded-md" data-testid="troubleshooting-steps">
                   <p className="text-xs font-mono">
                     Troubleshooting steps:<br />
                     1. Ensure the database is running<br />
@@ -264,7 +299,7 @@ export default function Index({ loaderData }: Route.ComponentProps) {
              <CardTitle>Shorten a new URL</CardTitle>
           </CardHeader>
           <CardContent>
-            <Form method="post" className="space-y-4" onSubmit={handleSubmit}>
+            <Form method="post" className="space-y-4" onSubmit={handleSubmit} noValidate>
               <div className="space-y-2">
                 <Label htmlFor="url">Long URL</Label>
                 <div className="flex gap-2">
@@ -274,13 +309,14 @@ export default function Index({ loaderData }: Route.ComponentProps) {
                     name="url"
                     placeholder="https://example.com/very-long-url..."
                     required
+                    data-testid="url-input"
                     className={`flex-1 ${shouldShowError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                     aria-invalid={shouldShowError || actionData?.error ? true : undefined}
                     aria-describedby={shouldShowError ? "url-error" : undefined}
                     onChange={(e) => touched && validate(e.target.value)}
                     onBlur={() => markAsTouched()}
                   />
-                  <Button type="submit" disabled={isSubmitting}>
+                  <Button type="submit" disabled={isSubmitting} data-testid="shorten-button">
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -292,69 +328,76 @@ export default function Index({ loaderData }: Route.ComponentProps) {
                   </Button>
                 </div>
                 {shouldShowError && (
-                  <p id="url-error" className="text-sm text-destructive font-medium animate-in fade-in slide-in-from-top-1">
+                  <p id="url-error" className="text-sm text-destructive font-medium animate-in fade-in slide-in-from-top-1" data-testid="validation-error">
                     {validationError?.message}
                   </p>
                 )}
                 {!shouldShowError && actionData?.error && (
-                  <p className="text-sm text-destructive font-medium">{actionData.error}</p>
+                  <p className="text-sm text-destructive font-medium" data-testid="action-error">{actionData.error}</p>
                 )}
               </div>
             </Form>
-
-            {actionData?.shortenedUrl && (
-              <div className="mt-6 p-4 bg-green-50/50 border border-green-100 dark:bg-green-900/10 dark:border-green-900/20 rounded-lg space-y-2 animate-in fade-in slide-in-from-top-2">
-                <Label className="text-xs text-green-700 dark:text-green-400 uppercase tracking-wider font-semibold">
-                  Success! Here's your short link
-                </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    readOnly
-                    value={actionData.shortenedUrl}
-                    className="bg-background font-mono text-sm border-green-200 dark:border-green-800"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    onClick={() => {
-                       navigator.clipboard.writeText(actionData.shortenedUrl);
-                    }}
-                    title="Copy to clipboard"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    asChild
-                    title="Open link"
-                  >
-                    <a href={actionData.shortenedUrl} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
+        {/* Success Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogHeader>
+            <DialogTitle>Success! Here's your short link</DialogTitle>
+            <DialogDescription>
+              Your URL has been successfully shortened and copied to your clipboard.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 py-4">
+            <Input
+              readOnly
+              value={lastShortenedUrl || ''}
+              data-testid="dialog-shortened-url-input"
+              className="bg-muted font-mono text-sm"
+              onClick={(e) => e.currentTarget.select()}
+            />
+            <Button
+              variant="secondary"
+              size="icon"
+              data-testid="dialog-copy-button"
+              onClick={() => lastShortenedUrl && handleCopy(lastShortenedUrl, 'new-url')}
+              title="Copy to clipboard"
+            >
+              {copiedCode === 'new-url' ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              asChild
+              data-testid="dialog-open-link-button"
+              title="Open link"
+            >
+              <a href={lastShortenedUrl || '#'} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setIsDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </Dialog>
+
         {/* Recent URLs Table */}
         {urls.length > 0 && (
-          <div className="space-y-4">
+          <div className="space-y-4" data-testid="recent-links-section">
             <h2 className="text-2xl font-semibold tracking-tight">Your Recent Links</h2>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {urls.map((url) => (
-                <Card key={url.shortCode} className="flex flex-col">
+                <Card key={url.shortCode} className="flex flex-col" data-testid={`link-card-${url.shortCode}`}>
                   <CardHeader className="pb-2">
                     <CardTitle className="flex items-center justify-between text-base">
-                      <span className="font-mono text-primary">{url.shortCode}</span>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                      <span className="font-mono text-primary" data-testid="short-code-display">{url.shortCode}</span>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded-full" data-testid="visit-count">
                         <BarChart className="w-3 h-3" />
                         <span>{url.visitCount} visits</span>
                       </div>
                     </CardTitle>
-                    <CardDescription className="text-xs truncate" title={url.originalUrl}>
+                    <CardDescription className="text-xs truncate" title={url.originalUrl} data-testid="original-url-display">
                       {url.originalUrl}
                     </CardDescription>
                   </CardHeader>
@@ -366,17 +409,29 @@ export default function Index({ loaderData }: Route.ComponentProps) {
                        <span className="text-xs text-muted-foreground font-mono truncate">
                          {baseUrl}{url.shortCode}
                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => {
-                             navigator.clipboard.writeText(baseUrl + url.shortCode);
-                          }}
-                          title="Copy"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
+                       <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleCopy(baseUrl + url.shortCode, url.shortCode)}
+                            title="Copy"
+                            type="button"
+                          >
+                            {copiedCode === url.shortCode ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            asChild
+                            title="Go to URL"
+                          >
+                            <a href={baseUrl + url.shortCode} target="_blank" rel="noopener noreferrer">
+                               <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </Button>
+                       </div>
                     </div>
                   </CardFooter>
                 </Card>
@@ -388,3 +443,4 @@ export default function Index({ loaderData }: Route.ComponentProps) {
     </main>
   );
 }
+

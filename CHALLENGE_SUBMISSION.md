@@ -28,9 +28,14 @@
 5.  **Infrastructure**:
     -   Updated `Dockerfile` to ensure `prisma generate` runs during build and `prisma db push` runs on startup.
     -   Verified the engine runtime with a custom script (`libs/engine/scripts/test-db.ts`).
+-   **E2E Testing (Playwright)**:
+    - Implemented a complete E2E test suite in `applications/web/e2e/url-shortener.spec.ts`.
+    - Added `data-testid` attributes to UI components for more resilient testing.
+    - Verified URL shortening, redirection, statistics tracking, and local storage cleanup.
+    - Added robust error handling UI for database connection failures.
+    - Resolved E2E failures by enabling custom form validation (`noValidate`) and ensuring proper URL state synchronization when clearing local storage.
 
 ## What I Would Do With More Time
--   **Testing**: Add Integration tests for the Web API (End-to-End). Currently, I manually verified the Engine runtime.
 -   **Caching**: Implement Redis caching for `GetOriginalUrlUseCase` to reduce DB hits for popular links.
 -   **Analytics**: Add more detailed analytics (location, referrer, graphs).
 -   **API Layer**: Separate the API from the UI (e.g. `applications/api`) if the project scales.
@@ -56,6 +61,8 @@ I used Google Antigravity as my pair programmer.
     - ARIA attributes for accessibility (`aria-invalid`, `aria-describedby`).
     - Input clearing and validation reset on successful shortening.
     - Micro-animations for error message appearance.
+    - **Dialog Workflow**: Implemented a success modal for new short URLs that auto-copies to clipboard.
+    - **Quick Actions**: Added "Copy" and "Go To" buttons on link cards with visual feedback.
 - **Comprehensive Testing**: 37 unit tests covering all edge cases, ensuring reliable validation logic.
 
 ## Feedback
