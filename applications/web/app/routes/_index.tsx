@@ -2,7 +2,14 @@
 import { Form, useActionData, useNavigation, useLoaderData, useRevalidator, useNavigate } from "react-router";
 import { Link, Loader2, Copy, ExternalLink, BarChart } from "lucide-react";
 import type { Route } from "./+types/_index";
-import { shortenUrlUseCase, repository } from "@url-shortener/engine";
+import { 
+  shortenUrlUseCase, 
+  repository,
+  InvalidUrlError,
+  isDatabaseError,
+  getErrorMessage,
+  getErrorCode,
+} from "@url-shortener/engine";
 import { useEffect } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -18,24 +25,44 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const origin = new URL(request.url).origin;
-  const url = new URL(request.url);
-  
-  // Get shortCodes from query params (sent from client-side localStorage)
-  const shortCodesParam = url.searchParams.get('shortCodes');
-  const shortCodes = shortCodesParam ? shortCodesParam.split(',').filter(Boolean) : [];
-  
-  // Only fetch URLs that match the user's shortCodes from localStorage
-  let urls: Awaited<ReturnType<typeof repository.findAllWithStats>> = [];
-  if (shortCodes.length > 0) {
-    const allUrls = await repository.findAllWithStats();
-    urls = allUrls.filter(url => shortCodes.includes(url.shortCode));
+  try {
+    const origin = new URL(request.url).origin;
+    const url = new URL(request.url);
+    
+    // Get shortCodes from query params (sent from client-side localStorage)
+    const shortCodesParam = url.searchParams.get('shortCodes');
+    const shortCodes = shortCodesParam ? shortCodesParam.split(',').filter(Boolean) : [];
+    
+    // Only fetch URLs that match the user's shortCodes from localStorage
+    let urls: Awaited<ReturnType<typeof repository.findAllWithStats>> = [];
+    if (shortCodes.length > 0) {
+      const allUrls = await repository.findAllWithStats();
+      urls = allUrls.filter(url => shortCodes.includes(url.shortCode));
+    }
+    
+    return {
+      urls,
+      baseUrl: `${origin}/s/`,
+    };
+  } catch (error) {
+    console.error('Loader error:', error);
+    
+    // Check if it's a database connection error
+    if (isDatabaseError(error)) {
+      return {
+        urls: [],
+        baseUrl: '',
+        error: getErrorMessage(error),
+        errorCode: getErrorCode(error),
+      };
+    }
+    
+    return {
+      urls: [],
+      baseUrl: '',
+      error: 'Failed to load URLs. Please try again.',
+    };
   }
-  
-  return {
-    urls,
-    baseUrl: `${origin}/s/`,
-  };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -61,8 +88,36 @@ export async function action({ request }: Route.ActionArgs) {
       shortCode: shortUrl.shortCode,
       success: true,
     };
-  } catch (e) {
-    console.error(e);
+  } catch (error) {
+    console.error('Action error:', error);
+    
+    // Handle specific error types
+    if (error instanceof InvalidUrlError) {
+      return { error: error.message };
+    }
+    
+    if (isDatabaseError(error)) {
+      const message = getErrorMessage(error);
+      const code = getErrorCode(error);
+      
+      // Provide specific guidance for database errors
+      if (code === 'DATABASE_CONNECTION_ERROR') {
+        return { 
+          error: 'Database is currently unavailable. Please ensure the database is running and try again.',
+          errorCode: code,
+        };
+      }
+      
+      if (code === 'DATABASE_TIMEOUT_ERROR') {
+        return { 
+          error: 'Database operation timed out. Please try again.',
+          errorCode: code,
+        };
+      }
+      
+      return { error: message, errorCode: code };
+    }
+    
     return { error: "Failed to shorten URL. Please try again." };
   }
 }
@@ -102,11 +157,12 @@ function addShortCode(shortCode: string) {
 
 export default function Index({ loaderData }: Route.ComponentProps) {
   const actionData = useActionData<typeof action>();
-  const { urls, baseUrl } = loaderData;
+  const { urls, baseUrl, error: loaderError, errorCode: loaderErrorCode } = loaderData;
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const isSubmitting = navigation.state === "submitting";
+  const isLoading = navigation.state === "loading" || revalidator.state === "loading";
 
   // On mount and when actionData changes, ensure we load the user's links
   useEffect(() => {
@@ -146,6 +202,33 @@ export default function Index({ loaderData }: Route.ComponentProps) {
              Enter a long URL to generate a short, shareable link instantly. Track your link's performance with built-in analytics.
           </p>
         </div>
+
+        {/* Database Error Alert */}
+        {loaderError && (
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                {loaderErrorCode === 'DATABASE_CONNECTION_ERROR' ? 'Database Connection Error' : 'Error Loading Data'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{loaderError}</p>
+              {loaderErrorCode === 'DATABASE_CONNECTION_ERROR' && (
+                <div className="mt-4 p-3 bg-muted rounded-md">
+                  <p className="text-xs font-mono">
+                    Troubleshooting steps:<br />
+                    1. Ensure the database is running<br />
+                    2. Check database connection settings<br />
+                    3. Verify network connectivity
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Shortener Card */}
         <Card className="shadow-lg border-muted">

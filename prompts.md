@@ -52,4 +52,55 @@
      - Collision detection + retry handles rare collisions effectively
      - No realistic scenario requires more than 8 characters
 
+7. **Implemented Robust Error Handling and Loading States**:
+   - **Custom Error Classes** (`libs/engine/src/domain/errors.ts`):
+     - `ApplicationError` - Base class for all application errors
+     - `DatabaseError` - Generic database errors
+     - `DatabaseConnectionError` - Database connection failures
+     - `DatabaseTimeoutError` - Database operation timeouts
+     - `ValidationError` - Input validation errors
+     - `NotFoundError` - Resource not found errors
+     - `ShortCodeGenerationError` - Short code generation failures
+     - `RateLimitError` - Rate limiting errors
+     - All errors include meaningful messages and HTTP status codes
+   
+   - **Database Health Check** (`libs/engine/src/adapters/database-health.ts`):
+     - Detects if Prisma/database is down
+     - Configurable timeout (default 5000ms)
+     - Identifies connection error patterns (ECONNREFUSED, ETIMEDOUT, etc.)
+     - Provides `check()` and `isHealthy()` methods
+   
+   - **Enhanced Repository Error Handling** (`libs/engine/src/adapters/prisma-repository.ts`):
+     - Wraps all Prisma operations in try-catch blocks
+     - Converts Prisma errors to application errors with context
+     - Handles specific Prisma error codes (P2002 duplicates, P2025 not found)
+     - Detects connection, timeout, and validation errors
+     - Provides meaningful error messages for each operation
+   
+   - **Frontend Error Handling** (`applications/web/app/routes/_index.tsx`):
+     - Comprehensive error handling in loader and action functions
+     - Database connection error detection and user-friendly messages
+     - Visual error alerts with troubleshooting steps
+     - Loading states during requests (`isSubmitting`, `isLoading`)
+     - Specific error messages for different failure scenarios
+   
+   - **Redirect Route Error Handling** (`applications/web/app/routes/s.$code.tsx`):
+     - Proper HTTP status codes (404, 503, 504, 500)
+     - Database error detection and handling
+     - Meaningful error messages for each error type
+   
+   - **Comprehensive Test Suite** (3 new test files, 212 total tests passing):
+     - `database-health.test.ts` - Tests health check, timeouts, connection errors
+     - `repository-error-handling.test.ts` - Tests all repository error scenarios
+     - `errors.test.ts` - Tests error classes, type guards, utility functions
+     - All tests passing with 100% coverage of error handling paths
+   
+   - **Key Features**:
+     - Meaningful error messages guide users on what went wrong
+     - Database connection issues detected and reported clearly
+     - Loading states prevent user confusion during operations
+     - Proper HTTP status codes for different error types
+     - Error context preserved for debugging
+     - Type-safe error handling with TypeScript
+
 
