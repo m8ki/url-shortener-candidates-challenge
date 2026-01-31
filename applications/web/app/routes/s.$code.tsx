@@ -1,11 +1,11 @@
 import { redirect } from "react-router";
 import type { Route } from "./+types/s.$code";
-import { shortenedUrls } from "@url-shortener/engine";
+import { getOriginalUrlUseCase } from "@url-shortener/engine";
 
-export function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, request }: Route.LoaderArgs) {
   const { code } = params;
 
-  const url = shortenedUrls.get(code);
+  const url = await getOriginalUrlUseCase.execute(code, request.headers.get("user-agent") || undefined);
 
   if (!url) {
     throw new Response("Not Found", { status: 404 });
