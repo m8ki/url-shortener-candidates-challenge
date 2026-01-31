@@ -1,8 +1,10 @@
 # Submission
 
 ## What I Did
+1. Adding a GEMINI.md file to help Google's Antigravity. Make itself improve it's instructions and reasoning.
+2. Adding a prompts.md file to document the prompts used
 
-<!-- Briefly describe what you implemented or improved. What did you prioritize and why? -->
+
 
 ## What I Would Do With More Time
 
