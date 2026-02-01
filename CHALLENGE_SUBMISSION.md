@@ -40,6 +40,13 @@
 -   **Analytics**: Add more detailed analytics (location, referrer, graphs).
 -   **API Layer**: Separate the API from the UI (e.g. `applications/api`) if the project scales.
 -   **DevContainer**: Fix the DevContainer setup for easier collaboration.
+-   **CI/CD**:
+    -   **Automated Testing Pipeline**: Implement GitHub Actions to run Unit Tests (Vitest) and E2E (Playwright) on every Pull Request to ensure regression testing.
+    -   **Linting & Style**: Enforce `eslint` and `prettier` checks in the pipeline to maintain code quality standards.
+    -   **Docker Build Check**: Verify that the application containerizes correctly on every commit to prevent deployment issues.
+-   **Security**:
+    -   **Rate Limiting**: Implement IP-based rate limiting (using Redis or middleware) on the creation endpoint to prevent abuse and spam.
+    -   **Bot Protection**: Add a lightweight CAPTCHA or Turnstile to the public submission form.
 
 ## AI Usage
 
